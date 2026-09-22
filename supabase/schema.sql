@@ -87,6 +87,8 @@ create index idx_transactions_reference_id on transactions(reference_id);
 create index idx_transactions_invitation_id on transactions(invitation_id);
 create index idx_transactions_payment_status on transactions(payment_status);
 
+create index if not exists idx_packages_id on packages(id);
+
 alter table transactions enable row level security;
 
 create policy "Users can view their own transactions"

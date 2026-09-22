@@ -89,6 +89,11 @@ export function CheckoutModal({ isOpen, onClose, formData, selectedPackage }: Ch
       return;
     }
 
+    if (!selectedPackage?.id) {
+      alert('Silakan pilih paket terlebih dahulu');
+      return;
+    }
+
     setIsProcessing(true);
 
     try {

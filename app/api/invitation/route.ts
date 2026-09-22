@@ -14,8 +14,34 @@ interface CreateInvitationRequest {
   customer_phone: string;
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs = 5000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`Supabase query timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+}
+
 export async function POST(request: Request) {
   try {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Missing SUPABASE_SERVICE_ROLE_KEY');
+      return NextResponse.json(
+        { message: 'Server configuration error: Service role key missing' },
+        { status: 500 }
+      );
+    }
+
     const body: CreateInvitationRequest = await request.json();
 
     const {
@@ -38,11 +64,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: existingSlug } = await supabaseAdmin
-      .from('invitations')
-      .select('id')
-      .eq('slug', slug)
-      .single();
+    const { data: existingSlug } = await withTimeout<{ data: { id: string } | null; error: Error | null }>(
+      (supabaseAdmin as any)
+        .from('invitations')
+        .select('id')
+        .eq('slug', slug)
+        .single()
+    );
 
     if (existingSlug) {
       return NextResponse.json(
@@ -51,11 +79,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: packageData } = await supabaseAdmin
-      .from('packages')
-      .select('*')
-      .eq('id', normalizedPackageId)
-      .single();
+    const { data: packageData } = await withTimeout<{ data: { id: string; name: string; price: number; active_days: number } | null; error: Error | null }>(
+      (supabaseAdmin as any)
+        .from('packages')
+        .select('*')
+        .eq('id', normalizedPackageId)
+        .single()
+    );
 
     if (!packageData) {
       return NextResponse.json(
@@ -75,11 +105,13 @@ export async function POST(request: Request) {
       custom_domain: null,
     };
 
-    const { data: invitation, error: invitationError } = await supabaseAdmin
-      .from('invitations')
-      .insert(invitationData)
-      .select()
-      .single();
+    const { data: invitation, error: invitationError } = await withTimeout<{ data: { id: string } | null; error: Error | null }>(
+      (supabaseAdmin as any)
+        .from('invitations')
+        .insert(invitationData)
+        .select()
+        .single()
+    );
 
     if (invitationError || !invitation) {
       console.error('Failed to create invitation:', invitationError);
@@ -98,15 +130,19 @@ export async function POST(request: Request) {
       payment_method: 'midtrans',
     };
 
-    const { data: transaction, error: transactionError } = await supabaseAdmin
-      .from('transactions')
-      .insert(transactionData)
-      .select()
-      .single();
+    const { data: transaction, error: transactionError } = await withTimeout<{ data: { id: string; invitation_id: string } | null; error: Error | null }>(
+      (supabaseAdmin as any)
+        .from('transactions')
+        .insert(transactionData)
+        .select()
+        .single()
+    );
 
     if (transactionError || !transaction) {
       console.error('Failed to create transaction:', transactionError);
-      await supabaseAdmin.from('invitations').delete().eq('id', invitation.id);
+      await withTimeout(
+        (supabaseAdmin as any).from('invitations').delete().eq('id', invitation.id)
+      );
       return NextResponse.json(
         { success: false, message: 'Gagal membuat transaksi' },
         { status: 500 }
