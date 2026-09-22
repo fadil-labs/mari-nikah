@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { sendWhatsAppNotification } from '@/lib/whatsapp';
 
 export async function GET(request: Request) {
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     const endOfSevenDays = new Date(sevenDaysFromNow);
     endOfSevenDays.setHours(23, 59, 59, 999);
 
-    const { data: expiredInvitations, error: expiredError } = await supabase
+    const { data: expiredInvitations, error: expiredError } = await supabaseAdmin
       .from('invitations')
       .select('id, slug, user_phone, expired_at')
       .eq('status', 'active')
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     if (expiredInvitations && expiredInvitations.length > 0) {
       const expiredIds = expiredInvitations.map((inv) => inv.id);
 
-      const { error: updateExpiredError } = await supabase
+      const { error: updateExpiredError } = await supabaseAdmin
         .from('invitations')
         .update({ status: 'expired' })
         .in('id', expiredIds);
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const { data: reminderInvitations, error: reminderError } = await supabase
+    const { data: reminderInvitations, error: reminderError } = await supabaseAdmin
       .from('invitations')
       .select('id, slug, user_phone, expired_at')
       .eq('status', 'active')

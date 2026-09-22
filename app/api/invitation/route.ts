@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { createMidtransSnapTransaction, generateMidtransOrderId } from '@/lib/payment/midtrans';
 import type { InvitationContentData } from '@/types/invitation';
 
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: existingSlug } = await supabase
+    const { data: existingSlug } = await supabaseAdmin
       .from('invitations')
       .select('id')
       .eq('slug', slug)
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: packageData } = await supabase
+    const { data: packageData } = await supabaseAdmin
       .from('packages')
       .select('*')
       .eq('id', normalizedPackageId)
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       custom_domain: null,
     };
 
-    const { data: invitation, error: invitationError } = await supabase
+    const { data: invitation, error: invitationError } = await supabaseAdmin
       .from('invitations')
       .insert(invitationData)
       .select()
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
       payment_method: 'midtrans',
     };
 
-    const { data: transaction, error: transactionError } = await supabase
+    const { data: transaction, error: transactionError } = await supabaseAdmin
       .from('transactions')
       .insert(transactionData)
       .select()
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
 
     if (transactionError || !transaction) {
       console.error('Failed to create transaction:', transactionError);
-      await supabase.from('invitations').delete().eq('id', invitation.id);
+      await supabaseAdmin.from('invitations').delete().eq('id', invitation.id);
       return NextResponse.json(
         { success: false, message: 'Gagal membuat transaksi' },
         { status: 500 }

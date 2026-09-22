@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { verifyMidtransNotificationSignature, createMidtransSignature } from '@/lib/payment/midtrans';
 import { sendWhatsAppNotification } from '@/lib/whatsapp';
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: transaction, error: transactionError } = await supabase
+    const { data: transaction, error: transactionError } = await supabaseAdmin
       .from('transactions')
       .select('*')
       .eq('reference_id', order_id)
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       paymentStatus = 'pending';
     }
 
-    const { data: updatedTransaction, error: updateTransactionError } = await supabase
+    const { data: updatedTransaction, error: updateTransactionError } = await supabaseAdmin
       .from('transactions')
       .update({
         payment_status: paymentStatus,
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     }
 
     if (paymentStatus === 'PAID') {
-      const { data: invitation, error: invitationError } = await supabase
+      const { data: invitation, error: invitationError } = await supabaseAdmin
         .from('invitations')
         .select('*')
         .eq('id', transaction.invitation_id)
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const { data: packageData, error: packageError } = await supabase
+      const { data: packageData, error: packageError } = await supabaseAdmin
         .from('packages')
         .select('active_days, name')
         .eq('id', invitation.package_id)
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
       const expiredAt = new Date();
       expiredAt.setDate(expiredAt.getDate() + packageData.active_days);
 
-      const { error: updateInvitationError } = await supabase
+      const { error: updateInvitationError } = await supabaseAdmin
         .from('invitations')
         .update({
           status: 'active',
