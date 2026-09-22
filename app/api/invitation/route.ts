@@ -29,6 +29,8 @@ export async function POST(request: Request) {
       customer_phone,
     } = body;
 
+    const normalizedPackageId = package_id.toLowerCase();
+
     if (!user_phone || !slug || !package_id || !content_data) {
       return NextResponse.json(
         { success: false, message: 'Data tidak lengkap' },
@@ -52,7 +54,7 @@ export async function POST(request: Request) {
     const { data: packageData } = await supabase
       .from('packages')
       .select('*')
-      .eq('id', package_id)
+      .eq('id', normalizedPackageId)
       .single();
 
     if (!packageData) {
@@ -66,7 +68,7 @@ export async function POST(request: Request) {
       user_phone,
       slug,
       theme_id,
-      package_id,
+      package_id: normalizedPackageId,
       content_data,
       status: 'pending',
       expired_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -112,7 +114,7 @@ export async function POST(request: Request) {
     }
 
     let snapToken = '';
-    let paymentUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/builder?package=${package_id}&invitation=${invitation.id}`;
+    let paymentUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/builder?package=${normalizedPackageId}&invitation=${invitation.id}`;
 
     try {
       const midtransResponse = await createMidtransSnapTransaction({
