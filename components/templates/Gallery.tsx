@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 import type { InvitationContentData } from '@/types/invitation';
 
 interface GalleryProps {
@@ -28,21 +29,22 @@ export function Gallery({ gallery }: GalleryProps) {
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {gallery.map((url, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.05 }}
-              whileHover={{ scale: 1.05 }}
-              className="aspect-square rounded-xl overflow-hidden shadow-md cursor-pointer"
-            >
-              <img
-                src={url}
-                alt={`Gallery ${index + 1}`}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ scale: 1.05 }}
+                className="aspect-square rounded-xl overflow-hidden shadow-md cursor-pointer relative"
+              >
+                <Image
+                  src={url}
+                  alt={`Gallery ${index + 1}`}
+                  fill
+                  className="object-cover"
+                  loading="lazy"
+                />
             </motion.div>
           ))}
         </div>

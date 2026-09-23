@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 import type { InvitationContentData } from '@/types/invitation';
 
 interface HeroSectionProps {
@@ -45,12 +46,13 @@ export function HeroSection({ contentData }: HeroSectionProps) {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.7 }}
-            className="mt-8 mb-8"
+            className="mt-8 mb-8 relative max-w-2xl mx-auto"
           >
-            <img
+            <Image
               src={media.cover}
               alt="Cover"
-              className="w-full max-w-2xl mx-auto rounded-2xl shadow-2xl object-cover aspect-video"
+              fill
+              className="rounded-2xl shadow-2xl object-cover aspect-video"
             />
           </motion.div>
         )}

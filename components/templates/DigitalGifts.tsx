@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, QrCode, X, Check } from 'lucide-react';
 import { useState } from 'react';
+import Image from 'next/image';
 import type { InvitationContentData } from '@/types/invitation';
 
 interface DigitalGiftsProps {
@@ -116,12 +117,13 @@ export function DigitalGifts({ digitalGifts }: DigitalGiftsProps) {
 
                 <div className="text-center">
                   <h3 className="text-lg font-semibold text-dark mb-4">QRIS Pembayaran</h3>
-                  <div className="w-64 h-64 mx-auto bg-gray-100 rounded-xl flex items-center justify-center mb-4">
+                  <div className="w-64 h-64 mx-auto bg-gray-100 rounded-xl flex items-center justify-center mb-4 relative">
                     {digitalGifts.accounts[0]?.qris_image ? (
-                      <img
+                      <Image
                         src={digitalGifts.accounts[0].qris_image}
                         alt="QRIS"
-                        className="w-full h-full object-contain p-4"
+                        fill
+                        className="object-contain p-4"
                       />
                     ) : (
                       <div className="text-center text-dark/40">

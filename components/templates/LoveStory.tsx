@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Heart } from 'lucide-react';
+import Image from 'next/image';
 import type { InvitationContentData } from '@/types/invitation';
 
 interface LoveStoryProps {
@@ -49,11 +50,14 @@ export function LoveStory({ loveStories }: LoveStoryProps) {
                   className="flex-1 bg-white rounded-2xl p-6 shadow-md"
                 >
                   {story.photo && (
-                    <img
-                      src={story.photo}
-                      alt={story.title}
-                      className="w-full h-48 object-cover rounded-xl mb-4"
-                    />
+                    <div className="relative w-full h-48">
+                      <Image
+                        src={story.photo}
+                        alt={story.title}
+                        fill
+                        className="object-cover rounded-xl mb-4"
+                      />
+                    </div>
                   )}
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-primary font-medium">
