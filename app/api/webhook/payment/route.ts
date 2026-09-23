@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { verifyMidtransNotificationSignature, createMidtransSignature } from '@/lib/payment/midtrans';
-import { sendWhatsAppNotification } from '@/lib/whatsapp';
 
 interface MidtransNotificationPayload {
   order_id: string;
@@ -12,6 +11,43 @@ interface MidtransNotificationPayload {
   signature_key: string;
 }
 
+async function sendFonnteNotification(phone: string, message: string): Promise<void> {
+  const fonnteToken = process.env.FONNTE_TOKEN || 'rdSW4BRTaS12YdiUAFJbMNS2qvGTbsrWPjs6VbRnCTU8pJdb9';
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch('https://api.fonnte.com/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': fonnteToken,
+      },
+      body: JSON.stringify({
+        target: phone,
+        message,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Fonnte API error:', response.status, errorText);
+    } else {
+      console.log('Fonnte notification sent successfully');
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('Fonnte API timeout after 5 seconds');
+    } else {
+      console.error('Failed to send Fonnte notification:', error);
+    }
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const payload: MidtransNotificationPayload = await request.json();
@@ -20,8 +56,8 @@ export async function POST(request: Request) {
 
     if (!order_id || !transaction_status || !status_code || !gross_amount || !signature_key) {
       return NextResponse.json(
-        { success: false, message: 'Data callback tidak lengkap' },
-        { status: 400 }
+        { status: 'OK', message: 'Notification processed' },
+        { status: 200 }
       );
     }
 
@@ -31,8 +67,8 @@ export async function POST(request: Request) {
     if (!isValidSignature) {
       console.error('Invalid Midtrans signature:', { order_id, transaction_status });
       return NextResponse.json(
-        { success: false, message: 'Signature tidak valid' },
-        { status: 401 }
+        { status: 'OK', message: 'Notification processed' },
+        { status: 200 }
       );
     }
 
@@ -45,24 +81,24 @@ export async function POST(request: Request) {
     if (transactionError || !transaction) {
       console.error('Transaction not found:', transactionError);
       return NextResponse.json(
-        { success: false, message: 'Transaksi tidak ditemukan' },
-        { status: 404 }
+        { status: 'OK', message: 'Notification processed' },
+        { status: 200 }
       );
     }
 
     let paymentStatus: string;
 
     if (transaction_status === 'settlement' || (transaction_status === 'capture' && fraud_status === 'accept')) {
-      paymentStatus = 'PAID';
+      paymentStatus = 'success';
     } else if (transaction_status === 'pending') {
       paymentStatus = 'pending';
     } else if (transaction_status === 'deny' || transaction_status === 'cancel' || transaction_status === 'expire') {
-      paymentStatus = 'FAILED';
+      paymentStatus = 'failed';
     } else {
       paymentStatus = 'pending';
     }
 
-    const { data: updatedTransaction, error: updateTransactionError } = await supabaseAdmin
+    await supabaseAdmin
       .from('transactions')
       .update({
         payment_status: paymentStatus,
@@ -74,19 +110,9 @@ export async function POST(request: Request) {
           gross_amount,
         },
       })
-      .eq('id', transaction.id)
-      .select()
-      .single();
+      .eq('id', transaction.id);
 
-    if (updateTransactionError || !updatedTransaction) {
-      console.error('Failed to update transaction:', updateTransactionError);
-      return NextResponse.json(
-        { success: false, message: 'Gagal memperbarui transaksi' },
-        { status: 500 }
-      );
-    }
-
-    if (paymentStatus === 'PAID') {
+    if (paymentStatus === 'success') {
       const { data: invitation, error: invitationError } = await supabaseAdmin
         .from('invitations')
         .select('*')
@@ -96,8 +122,8 @@ export async function POST(request: Request) {
       if (invitationError || !invitation) {
         console.error('Invitation not found:', invitationError);
         return NextResponse.json(
-          { success: false, message: 'Undangan tidak ditemukan' },
-          { status: 404 }
+          { status: 'OK', message: 'Notification processed' },
+          { status: 200 }
         );
       }
 
@@ -110,15 +136,15 @@ export async function POST(request: Request) {
       if (packageError || !packageData) {
         console.error('Package not found:', packageError);
         return NextResponse.json(
-          { success: false, message: 'Paket tidak ditemukan' },
-          { status: 404 }
+          { status: 'OK', message: 'Notification processed' },
+          { status: 200 }
         );
       }
 
       const expiredAt = new Date();
       expiredAt.setDate(expiredAt.getDate() + packageData.active_days);
 
-      const { error: updateInvitationError } = await supabaseAdmin
+      await supabaseAdmin
         .from('invitations')
         .update({
           status: 'active',
@@ -126,55 +152,25 @@ export async function POST(request: Request) {
         })
         .eq('id', invitation.id);
 
-      if (updateInvitationError) {
-        console.error('Failed to update invitation:', updateInvitationError);
-        return NextResponse.json(
-          { success: false, message: 'Gagal memperbarui status undangan' },
-          { status: 500 }
-        );
-      }
-
       console.log(`Payment successful for invitation: ${invitation.slug}`);
 
-      const expiredAtFormatted = new Date(expiredAt).toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
+      const invitationLink = `https://mari-nikah.vercel.app/p/${invitation.slug}`;
+      const waMessage = `Halo! Pembayaran undangan digital Mari Nikah kamu telah BERHASIL! 🎉\n\nLink undangan aktif kamu: ${invitationLink}\n\nTerima kasih telah mempercayakan momen bahagiamu bersama Mari Nikah.`;
 
-      const invitationLink = `${process.env.NEXT_PUBLIC_BASE_URL}/p/${invitation.slug}`;
-      const waMessage = `Halo Kak, pembayaran undangan digital Mari Nikah telah berhasil! 🎉
-
-📌 Link Undangan: ${invitationLink}
-📌 Masa Aktif s/d: ${expiredAtFormatted}
-
-Terima kasih telah mempercayakan momen bahagia Kakak bersama Mari Nikah!`;
-
-      sendWhatsAppNotification({
-        phone: invitation.user_phone,
-        message: waMessage,
-      }).catch((waError) => {
-        console.error('Failed to send WhatsApp notification:', waError);
+      sendFonnteNotification(invitation.user_phone, waMessage).catch((waError) => {
+        console.error('Failed to send Fonnte notification:', waError);
       });
     }
 
     return NextResponse.json(
-      {
-        success: true,
-        message: 'Webhook processed successfully',
-        data: {
-          order_id,
-          transaction_status,
-          payment_status: paymentStatus,
-        },
-      },
+      { status: 'OK', message: 'Notification processed' },
       { status: 200 }
     );
   } catch (error) {
     console.error('Webhook error:', error);
     return NextResponse.json(
-      { success: false, message: 'Terjadi kesalahan server' },
-      { status: 500 }
+      { status: 'OK', message: 'Notification processed' },
+      { status: 200 }
     );
   }
 }
