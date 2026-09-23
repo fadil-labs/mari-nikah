@@ -234,6 +234,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+  console.log('[Webhook] Received GET request');
   return NextResponse.json(
     { message: 'Webhook endpoint is active' },
     { status: 200 }
