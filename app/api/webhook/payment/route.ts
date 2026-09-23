@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { verifyMidtransNotificationSignature } from '@/lib/payment/midtrans';
+import { sendWhatsAppNotification } from '@/lib/whatsapp';
 
 interface MidtransNotificationPayload {
   order_id: string;
@@ -9,59 +10,6 @@ interface MidtransNotificationPayload {
   status_code: string;
   gross_amount: string;
   signature_key: string;
-}
-
-async function sendFonnteNotification(phone: string, message: string): Promise<void> {
-  const fonnteToken = process.env.FONNTE_TOKEN || 'rdSW4BRTaS12YdiUAFJbMNS2qvGTbsrWPjs6VbRnCTU8pJdb9';
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    let targetPhone = phone.replace(/[^0-9]/g, '');
-
-    if (!targetPhone) {
-      console.error('[Fonnte] Invalid phone number after cleaning:', phone);
-      return;
-    }
-
-    if (targetPhone.startsWith('0')) {
-      targetPhone = '62' + targetPhone.substring(1);
-    }
-
-    const payload = {
-      target: targetPhone,
-      message,
-    };
-
-    console.log('[Fonnte] Sending to:', targetPhone);
-
-    const response = await fetch('https://api.fonnte.com/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': fonnteToken,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Fonnte] API error:', response.status, errorText);
-    } else {
-      const result = await response.json();
-      console.log('[Fonnte] Notification sent successfully:', result);
-    }
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('[Fonnte] API timeout after 5 seconds');
-    } else {
-      console.error('[Fonnte] Failed to send notification:', error);
-    }
-  }
 }
 
 export async function POST(request: Request) {
@@ -206,14 +154,19 @@ export async function POST(request: Request) {
           const invitationLink = `https://mari-nikah.vercel.app/p/${invitation.slug}`;
           const waMessage = `Halo! Pembayaran undangan digital Mari Nikah kamu telah BERHASIL! 🎉\n\nLink undangan aktif kamu:\n${invitationLink}\n\nTerima kasih telah mempercayakan momen bahagiamu bersama Mari Nikah.`;
 
-          console.log('[Webhook] Sending Fonnte notification to:', invitation.user_phone);
+          console.log('[Webhook] Sending WhatsApp notification to:', invitation.user_phone);
           console.log('[Webhook] Message:', waMessage);
 
-          sendFonnteNotification(invitation.user_phone, waMessage).then(() => {
-            console.log('[Webhook] Fonnte notification completed');
-          }).catch((waError) => {
-            console.error('[Webhook] Failed to send Fonnte notification:', waError);
+          const waResult = await sendWhatsAppNotification({
+            phone: invitation.user_phone,
+            message: waMessage,
           });
+
+          if (waResult.success) {
+            console.log('[Webhook] WhatsApp notification completed');
+          } else {
+            console.error('[Webhook] Failed to send WhatsApp notification:', waResult.error);
+          }
         }
       } else {
         console.error('[Webhook] Transaction has no invitation_id:', tx);
