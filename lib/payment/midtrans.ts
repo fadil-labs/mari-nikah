@@ -44,7 +44,7 @@ export function generateMidtransOrderId(slug: string): string {
   return `MN-${timestamp}-${randomSuffix}`;
 }
 
-export function createMidtransSignature(orderId: string, statusCode: string, grossAmount: number, serverKey: string): string {
+export function createMidtransSignature(orderId: string, statusCode: string, grossAmount: string, serverKey: string): string {
   const data = `${orderId}${statusCode}${grossAmount}${serverKey}`;
   const crypto = require('crypto');
   return crypto.createHash('sha512').update(data).digest('hex');
@@ -53,7 +53,7 @@ export function createMidtransSignature(orderId: string, statusCode: string, gro
 export function verifyMidtransNotificationSignature(
   orderId: string,
   statusCode: string,
-  grossAmount: number,
+  grossAmount: string,
   serverKey: string,
   signatureKey: string
 ): boolean {

@@ -83,8 +83,8 @@ export async function POST(request: Request) {
       console.error('MIDTRANS_SERVER_KEY is not configured');
     }
 
-    const isValidSignature = verifyMidtransNotificationSignature(order_id, status_code, parseInt(gross_amount), serverKey, signature_key);
-    console.log('Signature verification result:', isValidSignature);
+    const isValidSignature = verifyMidtransNotificationSignature(order_id, status_code, gross_amount, serverKey, signature_key);
+    console.log('Signature verification result:', isValidSignature, 'order_id:', order_id, 'status_code:', status_code, 'gross_amount:', gross_amount);
 
     if (!isValidSignature) {
       console.error('Invalid Midtrans signature:', { order_id, transaction_status });
