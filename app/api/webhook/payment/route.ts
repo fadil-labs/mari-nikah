@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { verifyMidtransNotificationSignature, createMidtransSignature } from '@/lib/payment/midtrans';
+import { verifyMidtransNotificationSignature } from '@/lib/payment/midtrans';
 
 interface MidtransNotificationPayload {
   order_id: string;
@@ -18,6 +18,8 @@ async function sendFonnteNotification(phone: string, message: string): Promise<v
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+    const targetPhone = phone.replace(/[^0-9]/g, '');
+
     const response = await fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: {
@@ -25,7 +27,7 @@ async function sendFonnteNotification(phone: string, message: string): Promise<v
         'Authorization': fonnteToken,
       },
       body: JSON.stringify({
-        target: phone,
+        target: targetPhone,
         message,
       }),
       signal: controller.signal,
@@ -72,13 +74,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: transaction, error: transactionError } = await supabaseAdmin
+    const { data: tx, error: transactionError } = await supabaseAdmin
       .from('transactions')
-      .select('*')
+      .select('id, invitation_id, payment_status')
       .eq('reference_id', order_id)
       .single();
 
-    if (transactionError || !transaction) {
+    if (transactionError || !tx) {
       console.error('Transaction not found:', transactionError);
       return NextResponse.json(
         { status: 'OK', message: 'Notification processed' },
@@ -86,37 +88,16 @@ export async function POST(request: Request) {
       );
     }
 
-    let paymentStatus: string;
+    if (transaction_status === 'settlement' || transaction_status === 'capture') {
+      await supabaseAdmin
+        .from('transactions')
+        .update({ payment_status: 'success' })
+        .eq('id', tx.id);
 
-    if (transaction_status === 'settlement' || (transaction_status === 'capture' && fraud_status === 'accept')) {
-      paymentStatus = 'success';
-    } else if (transaction_status === 'pending') {
-      paymentStatus = 'pending';
-    } else if (transaction_status === 'deny' || transaction_status === 'cancel' || transaction_status === 'expire') {
-      paymentStatus = 'failed';
-    } else {
-      paymentStatus = 'pending';
-    }
-
-    await supabaseAdmin
-      .from('transactions')
-      .update({
-        payment_status: paymentStatus,
-        payment_method: 'midtrans',
-        payment_details: {
-          transaction_status,
-          fraud_status,
-          status_code,
-          gross_amount,
-        },
-      })
-      .eq('id', transaction.id);
-
-    if (paymentStatus === 'success') {
       const { data: invitation, error: invitationError } = await supabaseAdmin
         .from('invitations')
-        .select('*')
-        .eq('id', transaction.invitation_id)
+        .select('slug, user_phone, package_id')
+        .eq('id', tx.invitation_id)
         .single();
 
       if (invitationError || !invitation) {
@@ -127,35 +108,13 @@ export async function POST(request: Request) {
         );
       }
 
-      const { data: packageData, error: packageError } = await supabaseAdmin
-        .from('packages')
-        .select('active_days, name')
-        .eq('id', invitation.package_id)
-        .single();
-
-      if (packageError || !packageData) {
-        console.error('Package not found:', packageError);
-        return NextResponse.json(
-          { status: 'OK', message: 'Notification processed' },
-          { status: 200 }
-        );
-      }
-
-      const expiredAt = new Date();
-      expiredAt.setDate(expiredAt.getDate() + packageData.active_days);
-
       await supabaseAdmin
         .from('invitations')
-        .update({
-          status: 'active',
-          expired_at: expiredAt.toISOString(),
-        })
-        .eq('id', invitation.id);
-
-      console.log(`Payment successful for invitation: ${invitation.slug}`);
+        .update({ status: 'active' })
+        .eq('id', tx.invitation_id);
 
       const invitationLink = `https://mari-nikah.vercel.app/p/${invitation.slug}`;
-      const waMessage = `Halo! Pembayaran undangan digital Mari Nikah kamu telah BERHASIL! 🎉\n\nLink undangan aktif kamu: ${invitationLink}\n\nTerima kasih telah mempercayakan momen bahagiamu bersama Mari Nikah.`;
+      const waMessage = `Halo! Pembayaran undangan digital Mari Nikah kamu telah BERHASIL! 🎉\n\nLink undangan aktif kamu:\n${invitationLink}\n\nTerima kasih telah mempercayakan momen bahagiamu bersama Mari Nikah.`;
 
       sendFonnteNotification(invitation.user_phone, waMessage).catch((waError) => {
         console.error('Failed to send Fonnte notification:', waError);
