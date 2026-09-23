@@ -18,7 +18,21 @@ async function sendFonnteNotification(phone: string, message: string): Promise<v
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    const targetPhone = phone.replace(/[^0-9]/g, '');
+    let targetPhone = phone.replace(/[^0-9]/g, '');
+
+    if (!targetPhone) {
+      console.error('Invalid phone number after cleaning:', phone);
+      return;
+    }
+
+    if (targetPhone.startsWith('0')) {
+      targetPhone = '62' + targetPhone.substring(1);
+    }
+
+    const payload = {
+      target: targetPhone,
+      message,
+    };
 
     const response = await fetch('https://api.fonnte.com/send', {
       method: 'POST',
@@ -26,10 +40,7 @@ async function sendFonnteNotification(phone: string, message: string): Promise<v
         'Content-Type': 'application/json',
         'Authorization': fonnteToken,
       },
-      body: JSON.stringify({
-        target: targetPhone,
-        message,
-      }),
+      body: JSON.stringify(payload),
       signal: controller.signal,
     });
 
@@ -39,7 +50,8 @@ async function sendFonnteNotification(phone: string, message: string): Promise<v
       const errorText = await response.text();
       console.error('Fonnte API error:', response.status, errorText);
     } else {
-      console.log('Fonnte notification sent successfully');
+      const result = await response.json();
+      console.log('Fonnte notification sent successfully:', result);
     }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
@@ -56,9 +68,10 @@ export async function POST(request: Request) {
 
     const { order_id, transaction_status, fraud_status, status_code, gross_amount, signature_key } = payload;
 
-    console.log('Midtrans Webhook Received:', { order_id, transaction_status });
+    console.log('Midtrans Webhook Received:', { order_id, transaction_status, fraud_status, status_code, gross_amount });
 
     if (!order_id || !transaction_status || !status_code || !gross_amount || !signature_key) {
+      console.error('Missing required webhook fields');
       return NextResponse.json(
         { success: true, message: 'Webhook processed' },
         { status: 200 }
@@ -66,7 +79,12 @@ export async function POST(request: Request) {
     }
 
     const serverKey = process.env.MIDTRANS_SERVER_KEY || '';
+    if (!serverKey) {
+      console.error('MIDTRANS_SERVER_KEY is not configured');
+    }
+
     const isValidSignature = verifyMidtransNotificationSignature(order_id, status_code, parseInt(gross_amount), serverKey, signature_key);
+    console.log('Signature verification result:', isValidSignature);
 
     if (!isValidSignature) {
       console.error('Invalid Midtrans signature:', { order_id, transaction_status });
@@ -82,6 +100,8 @@ export async function POST(request: Request) {
       .eq('reference_id', order_id)
       .single();
 
+    console.log('Transaction lookup result:', { tx, txError });
+
     if (txError || !tx) {
       console.error('Transaction not found:', txError);
       return NextResponse.json(
@@ -91,16 +111,20 @@ export async function POST(request: Request) {
     }
 
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
-      await supabaseAdmin
+      console.log('Processing settlement/capture for transaction:', tx.id);
+
+      const { error: updateTxError } = await supabaseAdmin
         .from('transactions')
         .update({
-          payment_status: 'success',
+          payment_status: 'paid',
           webhook_payload: payload as any,
         })
         .eq('reference_id', order_id);
 
+      console.log('Transaction update result:', { error: updateTxError });
+
       if (tx && tx.invitation_id) {
-        await supabaseAdmin
+        const { error: updateInvitationError } = await supabaseAdmin
           .from('invitations')
           .update({
             status: 'active',
@@ -108,11 +132,15 @@ export async function POST(request: Request) {
           })
           .eq('id', tx.invitation_id);
 
+        console.log('Invitation update result:', { error: updateInvitationError, invitationId: tx.invitation_id });
+
         const { data: invitation, error: invitationError } = await supabaseAdmin
           .from('invitations')
           .select('slug, user_phone')
           .eq('id', tx.invitation_id)
           .single();
+
+        console.log('Invitation lookup result:', { invitation, invitationError });
 
         if (invitationError || !invitation) {
           console.error('Invitation not found:', invitationError);
@@ -120,10 +148,17 @@ export async function POST(request: Request) {
           const invitationLink = `https://mari-nikah.vercel.app/p/${invitation.slug}`;
           const waMessage = `Halo! Pembayaran undangan digital Mari Nikah kamu telah BERHASIL! 🎉\n\nLink undangan aktif kamu:\n${invitationLink}\n\nTerima kasih telah mempercayakan momen bahagiamu bersama Mari Nikah.`;
 
-          sendFonnteNotification(invitation.user_phone, waMessage).catch((waError) => {
+          console.log('Sending Fonnte notification to:', invitation.user_phone);
+          console.log('Message:', waMessage);
+
+          sendFonnteNotification(invitation.user_phone, waMessage).then(() => {
+            console.log('Fonnte notification completed');
+          }).catch((waError) => {
             console.error('Failed to send Fonnte notification:', waError);
           });
         }
+      } else {
+        console.error('Transaction has no invitation_id:', tx);
       }
     }
 
