@@ -56,9 +56,11 @@ export async function POST(request: Request) {
 
     const { order_id, transaction_status, fraud_status, status_code, gross_amount, signature_key } = payload;
 
+    console.log('Midtrans Webhook Received:', { order_id, transaction_status });
+
     if (!order_id || !transaction_status || !status_code || !gross_amount || !signature_key) {
       return NextResponse.json(
-        { status: 'OK', message: 'Notification processed' },
+        { success: true, message: 'Webhook processed' },
         { status: 200 }
       );
     }
@@ -69,21 +71,21 @@ export async function POST(request: Request) {
     if (!isValidSignature) {
       console.error('Invalid Midtrans signature:', { order_id, transaction_status });
       return NextResponse.json(
-        { status: 'OK', message: 'Notification processed' },
+        { success: true, message: 'Webhook processed' },
         { status: 200 }
       );
     }
 
-    const { data: tx, error: transactionError } = await supabaseAdmin
+    const { data: tx, error: txError } = await supabaseAdmin
       .from('transactions')
-      .select('id, invitation_id, payment_status')
-      .eq('reference_id', order_id)
+      .select('*')
+      .eq('order_id', order_id)
       .single();
 
-    if (transactionError || !tx) {
-      console.error('Transaction not found:', transactionError);
+    if (txError || !tx) {
+      console.error('Transaction not found:', txError);
       return NextResponse.json(
-        { status: 'OK', message: 'Notification processed' },
+        { success: true, message: 'Webhook processed' },
         { status: 200 }
       );
     }
@@ -91,44 +93,45 @@ export async function POST(request: Request) {
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
       await supabaseAdmin
         .from('transactions')
-        .update({ payment_status: 'success' })
-        .eq('id', tx.id);
+        .update({ status: 'success' })
+        .eq('order_id', order_id);
 
-      const { data: invitation, error: invitationError } = await supabaseAdmin
-        .from('invitations')
-        .select('slug, user_phone, package_id')
-        .eq('id', tx.invitation_id)
-        .single();
+      if (tx && tx.invitation_id) {
+        await supabaseAdmin
+          .from('invitations')
+          .update({
+            status: 'active',
+            expired_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          })
+          .eq('id', tx.invitation_id);
 
-      if (invitationError || !invitation) {
-        console.error('Invitation not found:', invitationError);
-        return NextResponse.json(
-          { status: 'OK', message: 'Notification processed' },
-          { status: 200 }
-        );
+        const { data: invitation, error: invitationError } = await supabaseAdmin
+          .from('invitations')
+          .select('slug, user_phone')
+          .eq('id', tx.invitation_id)
+          .single();
+
+        if (invitationError || !invitation) {
+          console.error('Invitation not found:', invitationError);
+        } else {
+          const invitationLink = `https://mari-nikah.vercel.app/p/${invitation.slug}`;
+          const waMessage = `Halo! Pembayaran undangan digital Mari Nikah kamu telah BERHASIL! 🎉\n\nLink undangan aktif kamu:\n${invitationLink}\n\nTerima kasih telah mempercayakan momen bahagiamu bersama Mari Nikah.`;
+
+          sendFonnteNotification(invitation.user_phone, waMessage).catch((waError) => {
+            console.error('Failed to send Fonnte notification:', waError);
+          });
+        }
       }
-
-      await supabaseAdmin
-        .from('invitations')
-        .update({ status: 'active' })
-        .eq('id', tx.invitation_id);
-
-      const invitationLink = `https://mari-nikah.vercel.app/p/${invitation.slug}`;
-      const waMessage = `Halo! Pembayaran undangan digital Mari Nikah kamu telah BERHASIL! 🎉\n\nLink undangan aktif kamu:\n${invitationLink}\n\nTerima kasih telah mempercayakan momen bahagiamu bersama Mari Nikah.`;
-
-      sendFonnteNotification(invitation.user_phone, waMessage).catch((waError) => {
-        console.error('Failed to send Fonnte notification:', waError);
-      });
     }
 
     return NextResponse.json(
-      { status: 'OK', message: 'Notification processed' },
+      { success: true, message: 'Webhook processed' },
       { status: 200 }
     );
   } catch (error) {
     console.error('Webhook error:', error);
     return NextResponse.json(
-      { status: 'OK', message: 'Notification processed' },
+      { success: true, message: 'Webhook processed' },
       { status: 200 }
     );
   }
