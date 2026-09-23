@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     const { data: tx, error: txError } = await supabaseAdmin
       .from('transactions')
       .select('*')
-      .eq('order_id', order_id)
+      .eq('reference_id', order_id)
       .single();
 
     if (txError || !tx) {
@@ -93,15 +93,18 @@ export async function POST(request: Request) {
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
       await supabaseAdmin
         .from('transactions')
-        .update({ status: 'success' })
-        .eq('order_id', order_id);
+        .update({
+          payment_status: 'success',
+          webhook_payload: payload as any,
+        })
+        .eq('reference_id', order_id);
 
       if (tx && tx.invitation_id) {
         await supabaseAdmin
           .from('invitations')
           .update({
             status: 'active',
-            expired_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            expired_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
           })
           .eq('id', tx.invitation_id);
 
