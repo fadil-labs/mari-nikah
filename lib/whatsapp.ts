@@ -16,6 +16,17 @@ export async function sendWhatsAppNotification({ phone, message }: WhatsAppNotif
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+    let targetPhone = phone.replace(/[^0-9]/g, '');
+
+    if (!targetPhone) {
+      console.warn('Invalid phone number after cleaning:', phone);
+      return { success: false, error: 'Invalid phone number' };
+    }
+
+    if (targetPhone.startsWith('0')) {
+      targetPhone = '62' + targetPhone.substring(1);
+    }
+
     const response = await fetch(gatewayUrl, {
       method: 'POST',
       headers: {
@@ -23,7 +34,7 @@ export async function sendWhatsAppNotification({ phone, message }: WhatsAppNotif
         'Authorization': `Bearer ${gatewayToken}`,
       },
       body: JSON.stringify({
-        phone,
+        target: targetPhone,
         message,
       }),
       signal: controller.signal,
