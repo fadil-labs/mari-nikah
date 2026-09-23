@@ -154,18 +154,24 @@ export async function POST(request: Request) {
           const invitationLink = `https://mari-nikah.vercel.app/p/${invitation.slug}`;
           const waMessage = `Halo! Pembayaran undangan digital Mari Nikah kamu telah BERHASIL! 🎉\n\nLink undangan aktif kamu:\n${invitationLink}\n\nTerima kasih telah mempercayakan momen bahagiamu bersama Mari Nikah.`;
 
-          console.log('[Webhook] Sending WhatsApp notification to:', invitation.user_phone);
+          const recipientPhone = invitation.user_phone || (payload as any).customer_details?.phone;
+
+          console.log('[Webhook] Sending WhatsApp notification to:', recipientPhone);
           console.log('[Webhook] Message:', waMessage);
 
-          const waResult = await sendWhatsAppNotification({
-            phone: invitation.user_phone,
-            message: waMessage,
-          });
-
-          if (waResult.success) {
-            console.log('[Webhook] WhatsApp notification completed');
+          if (!recipientPhone) {
+            console.error('[Webhook] No phone number available for WhatsApp notification');
           } else {
-            console.error('[Webhook] Failed to send WhatsApp notification:', waResult.error);
+            const waResult = await sendWhatsAppNotification({
+              phone: recipientPhone,
+              message: waMessage,
+            });
+
+            if (waResult.success) {
+              console.log('[Webhook] WhatsApp notification completed');
+            } else {
+              console.error('[Webhook] Failed to send WhatsApp notification:', waResult.error);
+            }
           }
         }
       } else {
