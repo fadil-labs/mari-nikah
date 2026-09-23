@@ -64,19 +64,26 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: existingSlug } = await withTimeout<{ data: { id: string } | null; error: Error | null }>(
-      (supabaseAdmin as any)
-        .from('invitations')
-        .select('id')
-        .eq('slug', slug)
-        .single()
-    );
+    const normalizedSlug = slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-    if (existingSlug) {
-      return NextResponse.json(
-        { success: false, message: 'Slug sudah digunakan' },
-        { status: 409 }
+    let finalSlug = normalizedSlug;
+    let slugSuffix = 1;
+
+    while (true) {
+      const { data: existingSlug } = await withTimeout<{ data: { id: string } | null; error: Error | null }>(
+        (supabaseAdmin as any)
+          .from('invitations')
+          .select('id')
+          .eq('slug', finalSlug)
+          .single()
       );
+
+      if (!existingSlug) {
+        break;
+      }
+
+      finalSlug = `${normalizedSlug}-${slugSuffix}`;
+      slugSuffix += 1;
     }
 
     const { data: packageData } = await withTimeout<{ data: { id: string; name: string; price: number; active_days: number } | null; error: Error | null }>(
@@ -96,7 +103,7 @@ export async function POST(request: Request) {
 
     const invitationData = {
       user_phone,
-      slug,
+      slug: finalSlug,
       theme_id,
       package_id: normalizedPackageId,
       content_data,
@@ -121,7 +128,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const orderId = generateMidtransOrderId(slug);
+    const orderId = generateMidtransOrderId(finalSlug);
     const transactionData = {
       invitation_id: invitation.id,
       reference_id: orderId,

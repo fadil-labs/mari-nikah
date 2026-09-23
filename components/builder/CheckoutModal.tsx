@@ -5,6 +5,7 @@ import { X, CreditCard, Smartphone, Check, Copy, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { InvitationContentData, Package } from '@/types/invitation';
 import { getMidtransClientKey } from '@/lib/payment/midtrans';
+import { generateInvitationSlug } from '@/lib/invitation';
 
 const MIDTRANS_CLIENT_KEY = getMidtransClientKey();
 
@@ -100,6 +101,8 @@ export function CheckoutModal({ isOpen, onClose, formData, selectedPackage }: Ch
     setIsProcessing(true);
 
     try {
+      const slug = generateInvitationSlug(formData.couple.groom.full_name, formData.couple.bride.full_name);
+
       const response = await fetch('/api/invitation', {
         method: 'POST',
         headers: {
@@ -107,7 +110,7 @@ export function CheckoutModal({ isOpen, onClose, formData, selectedPackage }: Ch
         },
         body: JSON.stringify({
           user_phone: customerPhone,
-          slug: `undangan-${Date.now()}`,
+          slug,
           theme_id: formData.theme,
           package_id: selectedPackage.id,
           content_data: formData,

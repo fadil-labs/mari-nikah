@@ -21,6 +21,7 @@ const packages: Package[] = [
     max_photos: 10,
     allow_custom_domain: false,
     allow_custom_music: false,
+    allow_video: false,
   },
   {
     id: 'standard',
@@ -30,6 +31,7 @@ const packages: Package[] = [
     max_photos: 30,
     allow_custom_domain: false,
     allow_custom_music: true,
+    allow_video: false,
   },
   {
     id: 'premium',
@@ -39,6 +41,7 @@ const packages: Package[] = [
     max_photos: 100,
     allow_custom_domain: true,
     allow_custom_music: true,
+    allow_video: true,
   },
   {
     id: 'vip',
@@ -48,6 +51,7 @@ const packages: Package[] = [
     max_photos: 300,
     allow_custom_domain: true,
     allow_custom_music: true,
+    allow_video: true,
   },
   {
     id: 'exclusive',
@@ -57,6 +61,7 @@ const packages: Package[] = [
     max_photos: 1000,
     allow_custom_domain: true,
     allow_custom_music: true,
+    allow_video: true,
   },
 ];
 

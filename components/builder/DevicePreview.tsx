@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Smartphone, Monitor, Tablet } from 'lucide-react';
+import Image from 'next/image';
 import type { InvitationContentData } from '@/types/invitation';
 
 interface DevicePreviewProps {
@@ -31,8 +32,8 @@ export function DevicePreview({ formData }: DevicePreviewProps) {
           >
             <div className="flex-1 space-y-6">
               {formData.media.cover && (
-                <motion.div layout className="w-full h-48 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-                  <span className="text-4xl">📸</span>
+                <motion.div layout className="w-full h-48 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center relative overflow-hidden">
+                  <Image src={formData.media.cover} alt="Cover" fill className="object-cover" />
                 </motion.div>
               )}
 

@@ -89,4 +89,5 @@ export interface Package {
   max_photos: number;
   allow_custom_domain: boolean;
   allow_custom_music: boolean;
+  allow_video: boolean;
 }

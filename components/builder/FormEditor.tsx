@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, Check, Palette, Music, Users, MapPin, Image, Gift } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { ChevronDown, ChevronUp, Check, Palette, Music, Users, MapPin, Image as ImageIcon, Gift, Upload, Video } from 'lucide-react';
+import Image from 'next/image';
 import type { InvitationContentData, Package } from '@/types/invitation';
 
 const themes = [
@@ -30,6 +31,59 @@ interface FormEditorProps {
 
 export function FormEditor({ formData, onUpdate, currentStep, onNext, onPrev, selectedPackage }: FormEditorProps) {
   const [expandedStep, setExpandedStep] = useState(0);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
+  const toBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const handleGalleryUpload = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+
+    const currentCount = formData.media.gallery.length;
+    const availableSlots = (selectedPackage?.max_photos || 10) - currentCount;
+    const filesToProcess = Array.from(files).slice(0, Math.max(availableSlots, 0));
+
+    if (!filesToProcess.length) {
+      alert('Maksimal foto untuk paket ini sudah tercapai');
+      return;
+    }
+
+    const base64Images = await Promise.all(filesToProcess.map((file) => toBase64(file)));
+
+    onUpdate((prev) => ({
+      ...prev,
+      media: {
+        ...prev.media,
+        gallery: [...prev.media.gallery, ...base64Images],
+      },
+    }));
+  };
+
+  const handleVideoUpload = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+
+    const file = files[0];
+    if (!file.type.startsWith('video/')) {
+      alert('File harus berupa video');
+      return;
+    }
+
+    const base64Video = await toBase64(file);
+
+    onUpdate((prev) => ({
+      ...prev,
+      media: {
+        ...prev.media,
+        video: base64Video,
+      },
+    }));
+  };
 
   const toggleStep = (step: number) => {
     setExpandedStep(expandedStep === step ? -1 : step);
@@ -99,6 +153,25 @@ export function FormEditor({ formData, onUpdate, currentStep, onNext, onPrev, se
               ))}
             </div>
           </div>
+
+          {selectedPackage?.allow_custom_domain && (
+            <div>
+              <label className="block text-sm font-medium text-dark mb-3">Custom Domain</label>
+              <input
+                type="text"
+                value={formData.meta.title || ''}
+                onChange={(e) =>
+                  onUpdate((prev) => ({
+                    ...prev,
+                    meta: { ...prev.meta, title: e.target.value },
+                  }))
+                }
+                className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                placeholder="contoh: undangan.pernikahan-sosi-dan-mamih.com"
+              />
+              <p className="text-xs text-dark/50 mt-1">Tersedia untuk paket {selectedPackage.name}</p>
+            </div>
+          )}
         </div>
       ),
     },
@@ -373,28 +446,96 @@ export function FormEditor({ formData, onUpdate, currentStep, onNext, onPrev, se
     {
       step: 4,
       title: 'Galeri & Cerita Cinta',
-      icon: Image,
+      icon: ImageIcon,
       content: (
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-dark mb-3">Galeri Foto (URL)</label>
-            <textarea
-              value={formData.media.gallery.join('\n')}
-              onChange={(e) =>
-                onUpdate((prev) => ({
-                  ...prev,
-                  media: {
-                    ...prev.media,
-                    gallery: e.target.value.split('\n').filter((url) => url.trim()),
-                  },
-                }))
-              }
-              className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all resize-none"
-              rows={4}
-              placeholder="Masukkan URL foto satu per baris"
+            <label className="block text-sm font-medium text-dark mb-3">Galeri Foto</label>
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => handleGalleryUpload(e.target.files)}
             />
-            <p className="text-xs text-dark/50 mt-1">Maksimal {selectedPackage?.max_photos || 10} foto</p>
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-dark/70 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              Upload Foto
+            </button>
+            <p className="text-xs text-dark/50 mt-1">
+              {formData.media.gallery.length} / {selectedPackage?.max_photos || 10} foto
+            </p>
+            {formData.media.gallery.length > 0 && (
+              <div className="grid grid-cols-4 gap-2 mt-3">
+                {formData.media.gallery.map((url, index) => (
+                  <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+                    <Image src={url} alt={`Gallery ${index + 1}`} fill className="object-cover" />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onUpdate((prev) => ({
+                          ...prev,
+                          media: {
+                            ...prev.media,
+                            gallery: prev.media.gallery.filter((_, i) => i !== index),
+                          },
+                        }))
+                      }
+                      className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
+          {selectedPackage?.allow_video && (
+            <div>
+              <label className="block text-sm font-medium text-dark mb-3">Video Undangan</label>
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => handleVideoUpload(e.target.files)}
+              />
+              <button
+                type="button"
+                onClick={() => videoInputRef.current?.click()}
+                className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-dark/70 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
+              >
+                <Video className="w-4 h-4" />
+                {formData.media.video ? 'Ganti Video' : 'Upload Video'}
+              </button>
+              {formData.media.video && (
+                <div className="mt-2 relative">
+                  <video src={formData.media.video} controls className="w-full rounded-lg" />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdate((prev) => ({
+                        ...prev,
+                        media: {
+                          ...prev.media,
+                          video: '',
+                        },
+                      }))
+                    }
+                    className="absolute top-2 right-2 px-2 py-1 bg-red-500 text-white rounded text-xs"
+                  >
+                    Hapus
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-dark mb-3">Cerita Cinta</label>
@@ -402,7 +543,7 @@ export function FormEditor({ formData, onUpdate, currentStep, onNext, onPrev, se
               <div key={story.id} className="p-4 bg-secondary rounded-xl space-y-3 mb-3">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-dark/70 mb-1">Judul Cerita</label>
+                    <label className="block-xs text-dark/70 mb-1">Judul Cerita</label>
                     <input
                       type="text"
                       value={story.title}
@@ -419,7 +560,7 @@ export function FormEditor({ formData, onUpdate, currentStep, onNext, onPrev, se
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-dark/70 mb-1">Tanggal</label>
+                    <label className="block-xs text-dark/70 mb-1">Tanggal</label>
                     <input
                       type="date"
                       value={story.date}
@@ -436,7 +577,7 @@ export function FormEditor({ formData, onUpdate, currentStep, onNext, onPrev, se
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-dark/70 mb-1">Deskripsi</label>
+                  <label className="block-xs text-dark/70 mb-1">Deskripsi</label>
                   <textarea
                     value={story.description}
                     onChange={(e) =>
