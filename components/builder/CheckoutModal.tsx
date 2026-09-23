@@ -4,6 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, CreditCard, Smartphone, Check, Copy, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { InvitationContentData, Package } from '@/types/invitation';
+import { getMidtransClientKey } from '@/lib/payment/midtrans';
+
+const MIDTRANS_CLIENT_KEY = getMidtransClientKey();
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -38,7 +41,7 @@ export function CheckoutModal({ isOpen, onClose, formData, selectedPackage }: Ch
 
     const script = document.createElement('script');
     script.src = 'https://app.sandbox.midtrans.com/snap/snap.js';
-    script.setAttribute('data-client-key', 'YOUR_CLIENT_KEY');
+    script.setAttribute('data-client-key', MIDTRANS_CLIENT_KEY);
     script.onload = () => setIsSnapLoaded(true);
     script.onerror = () => console.error('Failed to load Midtrans Snap JS');
     document.body.appendChild(script);
@@ -118,12 +121,9 @@ export function CheckoutModal({ isOpen, onClose, formData, selectedPackage }: Ch
 
       if (result.success) {
         const token = result.data.snap_token;
-        const paymentUrl = result.data.payment_url;
 
-        if (token && typeof window !== 'undefined' && (window as any).snap) {
+        if (token) {
           setSnapToken(token);
-        } else if (paymentUrl) {
-          window.location.href = paymentUrl;
         } else {
           alert('Pembayaran berhasil! Undangan Anda akan segera aktif.');
           onClose();

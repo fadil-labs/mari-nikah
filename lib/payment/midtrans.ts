@@ -2,6 +2,8 @@ const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || '';
 const MIDTRANS_CLIENT_KEY = process.env.MIDTRANS_CLIENT_KEY || '';
 const NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION = process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === 'true';
 
+const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://mari-nikah.vercel.app';
+
 const MIDTRANS_SNAP_BASE_URL = NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION
   ? 'https://app.midtrans.com/snap/v1/transactions'
   : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
@@ -75,16 +77,16 @@ export async function createMidtransSnapTransaction(payload: MidtransTransaction
       },
       customer_details: payload.customer_details,
       callbacks: payload.callbacks || {
-        finish: `${process.env.NEXT_PUBLIC_BASE_URL}/builder?status=success`,
-        error: `${process.env.NEXT_PUBLIC_BASE_URL}/builder?status=error`,
-        cancel: `${process.env.NEXT_PUBLIC_BASE_URL}/builder?status=cancel`,
-        pending: `${process.env.NEXT_PUBLIC_BASE_URL}/builder?status=pending`,
+        finish: `${NEXT_PUBLIC_BASE_URL}/builder?status=success`,
+        error: `${NEXT_PUBLIC_BASE_URL}/builder?status=error`,
+        cancel: `${NEXT_PUBLIC_BASE_URL}/builder?status=cancel`,
+        pending: `${NEXT_PUBLIC_BASE_URL}/builder?status=pending`,
       },
       override_notification_urls: payload.override_notification_urls || {
-        finish: `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/payment`,
-        error: `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/payment`,
-        cancel: `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/payment`,
-        pending: `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/payment`,
+        finish: `${NEXT_PUBLIC_BASE_URL}/api/webhook/payment`,
+        error: `${NEXT_PUBLIC_BASE_URL}/api/webhook/payment`,
+        cancel: `${NEXT_PUBLIC_BASE_URL}/api/webhook/payment`,
+        pending: `${NEXT_PUBLIC_BASE_URL}/api/webhook/payment`,
       },
     }),
   });

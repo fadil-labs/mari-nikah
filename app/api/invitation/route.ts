@@ -150,7 +150,8 @@ export async function POST(request: Request) {
     }
 
     let snapToken = '';
-    let paymentUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/builder?package=${normalizedPackageId}&invitation=${invitation.id}`;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://mari-nikah.vercel.app';
+    let paymentUrl = `${baseUrl}/builder?package=${normalizedPackageId}&invitation=${invitation.id}`;
 
     try {
       const midtransResponse = await createMidtransSnapTransaction({
@@ -168,6 +169,23 @@ export async function POST(request: Request) {
       paymentUrl = midtransResponse.redirect_url;
     } catch (paymentError) {
       console.error('Payment gateway error:', paymentError);
+      return NextResponse.json(
+        {
+          success: false,
+          message: paymentError instanceof Error ? paymentError.message : 'Gagal membuat transaksi Midtrans',
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!snapToken) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Midtrans tidak mengembalikan snap_token. Periksa konfigurasi server key dan client key.',
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(
