@@ -31,7 +31,7 @@ export async function sendWhatsAppNotification({ phone, message }: WhatsAppNotif
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${gatewayToken}`,
+        'Authorization': gatewayToken,
       },
       body: JSON.stringify({
         target: targetPhone,
